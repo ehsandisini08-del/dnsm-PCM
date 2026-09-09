@@ -381,8 +381,8 @@ php artisan migrate --force
 info "Menjalankan Database Seeder Awal..."
 php artisan db:seed --force
 
-# Create Custom Admin User
-info "Membuat Akun Administrator [$ADMIN_EMAIL]..."
+# Create Custom Admin User & Auto-Register Local Primary DNS Server
+info "Membuat Akun Administrator [$ADMIN_EMAIL] & Mendaftarkan DNS Server Lokal [$NS1]..."
 php artisan tinker --execute "
 \$user = \App\Models\User::updateOrCreate(
     ['email' => '${ADMIN_EMAIL}'],
@@ -393,7 +393,23 @@ php artisan tinker --execute "
         'is_active' => true,
     ]
 );
-echo 'Admin configured: ' . \$user->email;
+
+\$server = \App\Models\DnsServer::updateOrCreate(
+    ['hostname' => '${NS1}'],
+    [
+        'name' => 'Local Primary (NS1)',
+        'ip_address' => '${PUBLIC_IP}',
+        'type' => 'authoritative',
+        'status' => 'online',
+        'port' => 53,
+        'api_url' => 'http://127.0.0.1:8081',
+        'api_key' => '${PDNS_API_KEY}',
+        'description' => 'Local Authoritative PowerDNS Server (Auto-Configured)',
+        'last_check_at' => now(),
+    ]
+);
+
+echo 'Admin: ' . \$user->email . ' | Server: ' . \$server->name;
 "
 
 # Publish Filament Assets & Cache
