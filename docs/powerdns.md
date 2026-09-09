@@ -17,7 +17,6 @@ Edit `/etc/powerdns/pdns.conf`:
 ```ini
 # Main Settings
 launch=gmysql
-authoritative=yes
 setuid=pdns
 setgid=pdns
 
