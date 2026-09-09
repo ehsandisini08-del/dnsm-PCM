@@ -185,16 +185,16 @@ elif [[ "$OS" == "debian" ]]; then
     apt-get update -y
 fi
 
-info "Memasang PHP & modul lengkap..."
-apt-get install -y php8.3-cli php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml \
-                   php8.3-curl php8.3-zip php8.3-bcmath php8.3-intl php8.3-redis \
-                   php8.3-sqlite3 php8.3-gd || \
+info "Memasang PHP 8.4 & modul lengkap..."
 apt-get install -y php8.4-cli php8.4-fpm php8.4-mysql php8.4-mbstring php8.4-xml \
                    php8.4-curl php8.4-zip php8.4-bcmath php8.4-intl php8.4-redis \
                    php8.4-sqlite3 php8.4-gd
 
+# Ensure PHP 8.4 is the default CLI and FPM
+update-alternatives --set php /usr/bin/php8.4 2>/dev/null || true
+
 # Detect active PHP version & FPM socket
-PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "8.3")
+PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "8.4")
 PHP_FPM_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
 info "PHP Version Terpasang: PHP $PHP_VER (Socket: $PHP_FPM_SOCK)"
 
@@ -347,9 +347,10 @@ PDNS_SOA_EXPIRE=604800
 PDNS_SOA_MINIMUM=3600
 EOF
 
+export COMPOSER_ALLOW_SUPERUSER=1
 info "Menjalankan Composer Install..."
-composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs || \
-composer update --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs
+composer install --no-dev --optimize-autoloader --no-interaction || \
+composer update --no-dev --optimize-autoloader --no-interaction
 
 info "Generate Application Encryption Key..."
 php artisan key:generate --force
