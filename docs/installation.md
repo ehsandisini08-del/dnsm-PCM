@@ -1,6 +1,20 @@
-# Installation Guide — Ubuntu Server 24.04 LTS
+# Installation Guide — Ubuntu Server 22.04 / 24.04 LTS
 
-## 1. System Requirements
+## 🚀 Option 1: One-Click Automated Installer (Recommended)
+
+Run this single command on a fresh Ubuntu 22.04 or 24.04 LTS server:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ehsandisini08-del/dnsm-moalayanunyaho/main2/install.sh | sudo bash
+```
+
+The script will automatically prompt for your domain/IP, configure MariaDB, setup PowerDNS, resolve port 53 conflicts, deploy the Laravel application, configure Nginx, and start background workers.
+
+---
+
+## 🛠️ Option 2: Manual Step-by-Step Installation
+
+### 1. System Requirements
 - OS: Ubuntu Server 24.04 LTS
 - PHP: 8.3 or 8.4 (with extensions: `php-cli`, `php-fpm`, `php-mysql`, `php-mbstring`, `php-xml`, `php-curl`, `php-zip`, `php-bcmath`, `php-intl`)
 - Database: MariaDB 10.11+ or MySQL 8.0+
