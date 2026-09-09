@@ -5,7 +5,7 @@
 Run this single command on a fresh Ubuntu 22.04 or 24.04 LTS server:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ehsandisini08-del/dnsm-moalayanunyaho/main2/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ehsandisini08-del/dnsm-PCM/main/install.sh | sudo bash
 ```
 
 The script will automatically prompt for your domain/IP, configure MariaDB, setup PowerDNS, resolve port 53 conflicts, deploy the Laravel application, configure Nginx, and start background workers.

@@ -282,9 +282,8 @@ if [ -f "$SCRIPT_DIR/artisan" ]; then
 else
     info "Meng-clone source code dari GitHub repository..."
     rm -rf "$INSTALL_DIR"
-    git clone https://github.com/ehsandisini08-del/dnsm-moalayanunyaho.git "$INSTALL_DIR"
+    git clone -b main https://github.com/ehsandisini08-del/dnsm-PCM.git "$INSTALL_DIR" || git clone https://github.com/ehsandisini08-del/dnsm-PCM.git "$INSTALL_DIR"
     cd "$INSTALL_DIR"
-    git checkout main2 2>/dev/null || git checkout main 2>/dev/null || true
 fi
 
 cd "$INSTALL_DIR"

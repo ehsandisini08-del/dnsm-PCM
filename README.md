@@ -38,7 +38,7 @@ Enterprise-grade **DNS Manager** built specifically for **ISPs and Hosting Provi
 You can install and configure the entire stack (**Nginx, PHP 8.3-FPM, MariaDB, Redis, PowerDNS Authoritative, Supervisor, and Laravel DNS Manager**) with a single command:
 
 ```bash
-curl -sSL https://github.com/ehsandisini08-del/dnsm-PCM/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ehsandisini08-del/dnsm-PCM/main/install.sh | sudo bash
 ```
 
 *The automated installer handles all package dependencies, resolves port 53 conflicts with systemd-resolved, creates secure database credentials, runs migrations/seeders, configures virtual hosts, and sets up background queue workers.*
