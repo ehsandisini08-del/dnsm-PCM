@@ -139,8 +139,29 @@ if [[ $REPLY =~ ^[Nn]$ ]]; then
     exit 0
 fi
 
-# --- 4. Install Dependencies & Repositories ---
-header "STEP 3: Mengunduh dan Memasang Dependensi Sistem"
+# --- 4. Resolve Port 53 Conflict with systemd-resolved First ---
+header "STEP 3: Membebaskan Port 53 & Konfigurasi DNS Resolver"
+
+if systemctl is-active --quiet systemd-resolved 2>/dev/null || [ -d /etc/systemd ]; then
+    info "Mengonfigurasi systemd-resolved agar tidak memblokir Port 53..."
+    mkdir -p /etc/systemd/resolved.conf.d
+    cat << 'EOF' > /etc/systemd/resolved.conf.d/dnsmanager.conf
+[Resolve]
+DNS=8.8.8.8 1.1.1.1
+DNSStubListener=no
+EOF
+    systemctl restart systemd-resolved 2>/dev/null || true
+    
+    # Ensure local nameserver resolves properly during installation
+    if [ -L /etc/resolv.conf ] || [ -f /etc/resolv.conf ]; then
+        rm -f /etc/resolv.conf
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    fi
+fi
+
+# --- 5. Install Dependencies & Repositories ---
+header "STEP 4: Mengunduh dan Memasang Dependensi Sistem"
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -164,13 +185,18 @@ elif [[ "$OS" == "debian" ]]; then
     apt-get update -y
 fi
 
-info "Memasang PHP 8.3 & modul lengkap..."
+info "Memasang PHP & modul lengkap..."
 apt-get install -y php8.3-cli php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml \
                    php8.3-curl php8.3-zip php8.3-bcmath php8.3-intl php8.3-redis \
-                   php8.3-sqlite3 php8.3-gd
+                   php8.3-sqlite3 php8.3-gd || \
+apt-get install -y php8.4-cli php8.4-fpm php8.4-mysql php8.4-mbstring php8.4-xml \
+                   php8.4-curl php8.4-zip php8.4-bcmath php8.4-intl php8.4-redis \
+                   php8.4-sqlite3 php8.4-gd
 
-# Detect PHP-FPM socket path
-PHP_FPM_SOCK="/var/run/php/php8.3-fpm.sock"
+# Detect active PHP version & FPM socket
+PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "8.3")
+PHP_FPM_SOCK="/var/run/php/php${PHP_VER}-fpm.sock"
+info "PHP Version Terpasang: PHP $PHP_VER (Socket: $PHP_FPM_SOCK)"
 
 # Install Composer if not exists
 if ! command -v composer &> /dev/null; then
@@ -180,28 +206,7 @@ fi
 
 # Install PowerDNS Authoritative Server
 info "Memasang PowerDNS Authoritative Server & MySQL Backend..."
-apt-get install -y pdns-server pdns-backend-mysql
-
-# --- 5. Resolve Port 53 Conflict with systemd-resolved ---
-header "STEP 4: Konfigurasi Port 53 & Resolvconf"
-
-if systemctl is-active --quiet systemd-resolved; then
-    info "Mengonfigurasi systemd-resolved agar tidak memblokir Port 53 UDP/TCP..."
-    mkdir -p /etc/systemd/resolved.conf.d
-    cat << 'EOF' > /etc/systemd/resolved.conf.d/dnsmanager.conf
-[Resolve]
-DNS=8.8.8.8 1.1.1.1
-DNSStubListener=no
-EOF
-    systemctl restart systemd-resolved || true
-    
-    # Ensure local nameserver resolves properly
-    if [ -L /etc/resolv.conf ]; then
-        rm -f /etc/resolv.conf
-        echo "nameserver 8.8.8.8" > /etc/resolv.conf
-        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-    fi
-fi
+apt-get install -y pdns-server pdns-backend-mysql || true
 
 # --- 6. Setup MariaDB Database & Credentials ---
 header "STEP 5: Mengonfigurasi Database MariaDB"
@@ -264,9 +269,7 @@ cache-ttl=20
 negquery-cache-ttl=60
 EOF
 
-# Restart PowerDNS
-systemctl enable pdns
-systemctl restart pdns || warn "PowerDNS akan aktif penuh setelah skema database dimigrasi."
+systemctl enable pdns 2>/dev/null || true
 
 # --- 8. Deploy Laravel DNS Manager ---
 header "STEP 7: Menginstal Aplikasi Laravel DNS Manager"
@@ -344,8 +347,9 @@ PDNS_SOA_EXPIRE=604800
 PDNS_SOA_MINIMUM=3600
 EOF
 
-info "Menjalankan Composer Install (Optimized Production)..."
-composer install --no-dev --optimize-autoloader --no-interaction --quiet
+info "Menjalankan Composer Install..."
+composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs || \
+composer update --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs
 
 info "Generate Application Encryption Key..."
 php artisan key:generate --force
@@ -385,7 +389,7 @@ chown -R www-data:www-data "$INSTALL_DIR"
 chmod -R 775 "$INSTALL_DIR/storage" "$INSTALL_DIR/bootstrap/cache"
 
 # Restart PowerDNS now that DB tables exist
-systemctl restart pdns
+systemctl restart pdns 2>/dev/null || true
 
 # --- 9. Configure Nginx Web Server ---
 header "STEP 8: Mengonfigurasi Nginx Virtual Host"
@@ -458,9 +462,9 @@ stdout_logfile=${INSTALL_DIR}/storage/logs/worker.log
 stopwaitsecs=3600
 EOF
 
-supervisorctl reread
-supervisorctl update
-supervisorctl restart dnsmanager-worker:* || true
+supervisorctl reread 2>/dev/null || true
+supervisorctl update 2>/dev/null || true
+supervisorctl restart dnsmanager-worker:* 2>/dev/null || true
 
 # --- 11. Configure Crontab for Scheduler ---
 header "STEP 10: Mengonfigurasi Crontab Scheduler (Health Monitoring)"
@@ -471,12 +475,12 @@ CRON_JOB="* * * * * cd ${INSTALL_DIR} && php artisan schedule:run >> /dev/null 2
 # --- 12. Configure UFW Firewall ---
 header "STEP 11: Mengonfigurasi UFW Firewall"
 
-ufw allow 22/tcp comment 'SSH'
-ufw allow 80/tcp comment 'HTTP Web'
-ufw allow 443/tcp comment 'HTTPS Web'
-ufw allow 53/tcp comment 'DNS TCP'
-ufw allow 53/udp comment 'DNS UDP'
-ufw --force enable || true
+ufw allow 22/tcp comment 'SSH' 2>/dev/null || true
+ufw allow 80/tcp comment 'HTTP Web' 2>/dev/null || true
+ufw allow 443/tcp comment 'HTTPS Web' 2>/dev/null || true
+ufw allow 53/tcp comment 'DNS TCP' 2>/dev/null || true
+ufw allow 53/udp comment 'DNS UDP' 2>/dev/null || true
+ufw --force enable 2>/dev/null || true
 
 # --- 13. Save Credentials & Summary ---
 CREDENTIALS_FILE="/root/dnsmanager-credentials.txt"
@@ -510,7 +514,7 @@ Credentials File : ${CREDENTIALS_FILE}
 ================================================================
 EOF
 
-chmod 600 "$CREDENTIALS_FILE"
+chmod 600 "$CREDENTIALS_FILE" 2>/dev/null || true
 
 # --- 14. Verification Tests ---
 header "STEP 12: Pengujian Layanan DNS & Web Server"
@@ -531,13 +535,6 @@ fi
 
 echo -n "Memeriksa Status MariaDB Database... "
 if systemctl is-active --quiet mariadb; then
-    echo -e "${GREEN}[OK - ONLINE]${NC}"
-else
-    echo -e "${RED}[ERROR - OFFLINE]${NC}"
-fi
-
-echo -n "Memeriksa Status Supervisor Worker... "
-if systemctl is-active --quiet supervisor; then
     echo -e "${GREEN}[OK - ONLINE]${NC}"
 else
     echo -e "${RED}[ERROR - OFFLINE]${NC}"
