@@ -142,23 +142,30 @@ fi
 # --- 4. Resolve Port 53 Conflict with systemd-resolved First ---
 header "STEP 3: Membebaskan Port 53 & Konfigurasi DNS Resolver"
 
-if systemctl is-active --quiet systemd-resolved 2>/dev/null || [ -d /etc/systemd ]; then
-    info "Mengonfigurasi systemd-resolved agar tidak memblokir Port 53..."
-    mkdir -p /etc/systemd/resolved.conf.d
-    cat << 'EOF' > /etc/systemd/resolved.conf.d/dnsmanager.conf
+info "Mematikan DNSStubListener pada systemd-resolved..."
+mkdir -p /etc/systemd/resolved.conf.d
+cat << 'EOF' > /etc/systemd/resolved.conf.d/dnsmanager.conf
 [Resolve]
 DNS=8.8.8.8 1.1.1.1
 DNSStubListener=no
 EOF
-    systemctl restart systemd-resolved 2>/dev/null || true
-    
-    # Ensure local nameserver resolves properly during installation
-    if [ -L /etc/resolv.conf ] || [ -f /etc/resolv.conf ]; then
-        rm -f /etc/resolv.conf
-        echo "nameserver 8.8.8.8" > /etc/resolv.conf
-        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-    fi
+
+if [ -f /etc/systemd/resolved.conf ]; then
+    sed -i 's/^#*DNSStubListener=.*/DNSStubListener=no/' /etc/systemd/resolved.conf 2>/dev/null || true
 fi
+
+systemctl restart systemd-resolved 2>/dev/null || true
+
+# Ensure static nameservers in resolv.conf
+if [ -L /etc/resolv.conf ] || [ -f /etc/resolv.conf ]; then
+    rm -f /etc/resolv.conf
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+fi
+
+# Kill any lingering process holding port 53
+fuser -k 53/tcp 2>/dev/null || true
+fuser -k 53/udp 2>/dev/null || true
 
 # --- 5. Install Dependencies & Repositories ---
 header "STEP 4: Mengunduh dan Memasang Dependensi Sistem"
@@ -223,8 +230,14 @@ info "Membuat Database [$DB_NAME] dan User [$DB_USER]..."
 mysql -u root << EOF
 CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASSWORD}';
+CREATE USER IF NOT EXISTS '${DB_USER}'@'::1' IDENTIFIED BY '${DB_PASSWORD}';
 ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+ALTER USER '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASSWORD}';
+ALTER USER '${DB_USER}'@'::1' IDENTIFIED BY '${DB_PASSWORD}';
 GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';
+GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'::1';
 FLUSH PRIVILEGES;
 EOF
 
@@ -527,15 +540,18 @@ chmod 600 "$CREDENTIALS_FILE" 2>/dev/null || true
 # --- 14. Verification Tests ---
 header "STEP 12: Pengujian Layanan DNS & Web Server"
 
-# Ensure services are up
+# Ensure PowerDNS is cleanly restarted
+systemctl reset-failed pdns 2>/dev/null || true
 systemctl restart pdns 2>/dev/null || true
-sleep 1
+sleep 2
 
 echo -n "Memeriksa Status PowerDNS (Port 53)... "
-if ss -tulpn | grep -E -q ':(53|pdns) ' || systemctl is-active --quiet pdns; then
+if systemctl is-active --quiet pdns || ss -tulpn | grep -E -q ':(53|pdns) '; then
     echo -e "${GREEN}[OK - ONLINE]${NC}"
 else
     echo -e "${RED}[ERROR - OFFLINE]${NC}"
+    warn "Log diagnostik PowerDNS:"
+    journalctl -u pdns -n 10 --no-pager 2>/dev/null || true
 fi
 
 echo -n "Memeriksa Status Nginx Web Server... "
