@@ -451,27 +451,37 @@ class PowerDNSService
         $apiOnline = null;
         $errorMessage = null;
 
+        $ipsToTry = array_unique(array_filter([$ip, '127.0.0.1']));
+
         // 1. Test Port 53 TCP socket
-        $connection = @fsockopen($ip, $port, $errno, $errstr, 2);
-        if (is_resource($connection)) {
-            $tcpOnline = true;
-            fclose($connection);
-        } else {
+        foreach ($ipsToTry as $testIp) {
+            $connection = @fsockopen($testIp, $port, $errno, $errstr, 2);
+            if (is_resource($connection)) {
+                $tcpOnline = true;
+                fclose($connection);
+                break;
+            }
+        }
+        if (! $tcpOnline) {
             $errorMessage = $errstr ?: 'TCP Port connection timed out';
         }
 
         // 2. Test Port 53 UDP Socket with actual DNS probe
-        $udpSocket = @fsockopen("udp://{$ip}", $port, $errno, $errstr, 1);
-        if (is_resource($udpSocket)) {
-            stream_set_timeout($udpSocket, 1);
-            $dnsQuery = "\xaa\xaa\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01";
-            @fwrite($udpSocket, $dnsQuery);
-            $response = @fread($udpSocket, 512);
-            if ($response && strlen($response) >= 12) {
-                $udpOnline = true;
-                $dnsQueryOnline = true;
+        foreach ($ipsToTry as $testIp) {
+            $udpSocket = @fsockopen("udp://{$testIp}", $port, $errno, $errstr, 1);
+            if (is_resource($udpSocket)) {
+                stream_set_timeout($udpSocket, 1);
+                $dnsQuery = "\xaa\xaa\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01";
+                @fwrite($udpSocket, $dnsQuery);
+                $response = @fread($udpSocket, 512);
+                if ($response && strlen($response) >= 12) {
+                    $udpOnline = true;
+                    $dnsQueryOnline = true;
+                    fclose($udpSocket);
+                    break;
+                }
+                fclose($udpSocket);
             }
-            fclose($udpSocket);
         }
 
         // 3. Test API Connectivity if configured
