@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\PdnsDomain;
 use App\Services\PowerDNSService;
 use BackedEnum;
 use Filament\Notifications\Notification;
@@ -28,7 +29,9 @@ class DnsTools extends Page
 
     public string $lookupType = 'A';
 
-    public ?string $lookupServer = null;
+    public string $lookupServer = 'system'; // 'system', 'local', '8.8.8.8', '1.1.1.1', 'custom'
+
+    public ?string $customServerIp = '';
 
     public ?array $lookupResults = null;
 
@@ -43,21 +46,44 @@ class DnsTools extends Page
 
     public bool $isCheckingProp = false;
 
+    public function getExistingZonesProperty()
+    {
+        return PdnsDomain::orderBy('name')->pluck('name')->toArray();
+    }
+
+    public function selectDomainForLookup(string $domain): void
+    {
+        $this->lookupDomain = $domain;
+    }
+
+    public function selectDomainForProp(string $domain): void
+    {
+        $this->propDomain = $domain;
+    }
+
     public function runLookup(): void
     {
         $this->validate([
-            'lookupDomain' => ['required', 'string', 'min:3'],
+            'lookupDomain' => ['required', 'string', 'min:2'],
             'lookupType' => ['required', 'string'],
         ]);
 
         $this->isLookingUp = true;
+
+        $targetServer = match ($this->lookupServer) {
+            'local' => '127.0.0.1',
+            'google' => '8.8.8.8',
+            'cloudflare' => '1.1.1.1',
+            'custom' => $this->customServerIp ?: null,
+            default => null,
+        };
 
         try {
             $service = app(PowerDNSService::class);
             $this->lookupResults = $service->lookupDns(
                 $this->lookupDomain,
                 $this->lookupType,
-                $this->lookupServer
+                $targetServer
             );
 
             Notification::make()
@@ -79,7 +105,7 @@ class DnsTools extends Page
     public function runPropagation(): void
     {
         $this->validate([
-            'propDomain' => ['required', 'string', 'min:3'],
+            'propDomain' => ['required', 'string', 'min:2'],
             'propType' => ['required', 'string'],
         ]);
 
