@@ -190,10 +190,23 @@ class PowerDNSService
         }
 
         // Validate record content & structure
-        DnsRecordValidator::validate($data);
+        DnsRecordValidator::validate($data, $domainModel->name);
 
         $qualifiedName = $this->qualifyRecordName($data['name'], $domainModel->name);
         $normalizedContent = DnsRecordValidator::normalizeContent($type, $data['content']);
+
+        // RFC 1034 section 3.6.2 & RFC 2181: CNAME coexistence validation
+        if ($type === 'CNAME') {
+            $hasOtherRecords = $domainModel->records()->where('name', $qualifiedName)->exists();
+            if ($hasOtherRecords) {
+                throw new PowerDNSException("A CNAME record cannot coexist with other records for label [{$qualifiedName}] (RFC 1034).");
+            }
+        } else {
+            $hasCname = $domainModel->records()->where('name', $qualifiedName)->where('type', 'CNAME')->exists();
+            if ($hasCname) {
+                throw new PowerDNSException("Cannot create a {$type} record because a CNAME already exists for label [{$qualifiedName}] (RFC 1034).");
+            }
+        }
 
         try {
             return DB::transaction(function () use ($domainModel, $qualifiedName, $type, $normalizedContent, $data) {
@@ -252,10 +265,32 @@ class PowerDNSService
             'prio' => $recordModel->prio,
         ], $data);
 
-        DnsRecordValidator::validate($mergedForValidation);
+        DnsRecordValidator::validate($mergedForValidation, $domainModel->name);
+
+        $qualifiedName = isset($data['name']) ? $this->qualifyRecordName($data['name'], $domainModel->name) : $recordModel->name;
+
+        // RFC 1034 section 3.6.2 & RFC 2181: CNAME coexistence validation
+        if ($type === 'CNAME') {
+            $hasOtherRecords = $domainModel->records()
+                ->where('name', $qualifiedName)
+                ->where('id', '!=', $recordModel->id)
+                ->exists();
+            if ($hasOtherRecords) {
+                throw new PowerDNSException("A CNAME record cannot coexist with other records for label [{$qualifiedName}] (RFC 1034).");
+            }
+        } else {
+            $hasCname = $domainModel->records()
+                ->where('name', $qualifiedName)
+                ->where('type', 'CNAME')
+                ->where('id', '!=', $recordModel->id)
+                ->exists();
+            if ($hasCname) {
+                throw new PowerDNSException("Cannot update record to {$type} because a CNAME already exists for label [{$qualifiedName}] (RFC 1034).");
+            }
+        }
 
         if (isset($data['name'])) {
-            $data['name'] = $this->qualifyRecordName($data['name'], $domainModel->name);
+            $data['name'] = $qualifiedName;
         }
 
         if (isset($data['content'])) {
@@ -810,7 +845,12 @@ class PowerDNSService
             $prio = $rec->prio !== null ? "{$rec->prio}\t" : '';
             $disabled = $rec->disabled ? '; DISABLED: ' : '';
 
-            $output[] = "{$disabled}{$prefix}\t{$rec->ttl}\tIN\t{$rec->type}\t{$prio}{$rec->content}";
+            $content = $rec->content;
+            if (in_array($rec->type, ['CNAME', 'NS', 'PTR', 'MX'])) {
+                $content = $this->normalizeFqdn($content);
+            }
+
+            $output[] = "{$disabled}{$prefix}\t{$rec->ttl}\tIN\t{$rec->type}\t{$prio}{$content}";
         }
 
         return implode("\n", $output)."\n";

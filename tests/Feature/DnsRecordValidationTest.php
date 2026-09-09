@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\PowerDNSException;
 use App\Services\DnsRecordValidator;
 use App\Services\PowerDNSService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -67,7 +68,7 @@ test('valid CNAME record is accepted and normalized', function () {
         'type' => 'CNAME',
         'content' => 'target.example.com',
     ]);
-    expect($record->content)->toBe('target.example.com.');
+    expect($record->content)->toBe('target.example.com');
 });
 
 test('CNAME with IP address is rejected', function () {
@@ -77,6 +78,44 @@ test('CNAME with IP address is rejected', function () {
         'content' => '103.10.10.1',
     ]);
 })->throws(ValidationException::class);
+
+test('CNAME at zone apex is rejected by validation', function () {
+    $this->service->createRecord($this->domain, [
+        'name' => '@',
+        'type' => 'CNAME',
+        'content' => 'target.example.com',
+    ]);
+})->throws(ValidationException::class);
+
+test('CNAME cannot coexist with existing records on same label', function () {
+    $this->service->createRecord($this->domain, [
+        'name' => 'sub',
+        'type' => 'A',
+        'content' => '103.10.10.1',
+    ]);
+
+    $this->expectException(PowerDNSException::class);
+    $this->service->createRecord($this->domain, [
+        'name' => 'sub',
+        'type' => 'CNAME',
+        'content' => 'target.example.com',
+    ]);
+});
+
+test('other record types cannot be created on label where CNAME exists', function () {
+    $this->service->createRecord($this->domain, [
+        'name' => 'cnamehost',
+        'type' => 'CNAME',
+        'content' => 'target.example.com',
+    ]);
+
+    $this->expectException(PowerDNSException::class);
+    $this->service->createRecord($this->domain, [
+        'name' => 'cnamehost',
+        'type' => 'A',
+        'content' => '103.10.10.1',
+    ]);
+});
 
 // --- MX Record ---
 
@@ -88,7 +127,7 @@ test('valid MX record is accepted', function () {
         'prio' => 10,
     ]);
     expect($record->prio)->toBe(10)
-        ->and($record->content)->toBe('mail.example.com.');
+        ->and($record->content)->toBe('mail.example.com');
 });
 
 test('MX record without priority is rejected', function () {
@@ -168,18 +207,18 @@ test('valid PTR record is accepted and normalized', function () {
         'type' => 'PTR',
         'content' => 'host.example.com',
     ]);
-    expect($record->content)->toBe('host.example.com.');
+    expect($record->content)->toBe('host.example.com');
 });
 
 // --- NS Record ---
 
 test('valid NS record is accepted and normalized', function () {
     $record = $this->service->createRecord($this->domain, [
-        'name' => '@',
+        'name' => 'subns',
         'type' => 'NS',
         'content' => 'ns3.example.com',
     ]);
-    expect($record->content)->toBe('ns3.example.com.');
+    expect($record->content)->toBe('ns3.example.com');
 });
 
 // --- Content normalization ---
@@ -189,9 +228,10 @@ test('normalizeContent wraps TXT in quotes', function () {
     expect($result)->toBe('"v=spf1 ~all"');
 });
 
-test('normalizeContent adds trailing dot to CNAME', function () {
-    expect(DnsRecordValidator::normalizeContent('CNAME', 'target.example.com'))->toBe('target.example.com.');
-    expect(DnsRecordValidator::normalizeContent('CNAME', 'target.example.com.'))->toBe('target.example.com.');
+test('normalizeContent cleans trailing dot from hostnames for mysql', function () {
+    expect(DnsRecordValidator::normalizeContent('CNAME', 'target.example.com.'))->toBe('target.example.com');
+    expect(DnsRecordValidator::normalizeContent('MX', 'mail.example.com.'))->toBe('mail.example.com');
+    expect(DnsRecordValidator::normalizeContent('NS', 'ns1.example.com.'))->toBe('ns1.example.com');
 });
 
 test('normalizeContent formats CAA properly', function () {

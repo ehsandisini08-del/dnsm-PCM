@@ -13,6 +13,8 @@ class PdnsRecordForm
 {
     public static function configure(Schema $schema): Schema
     {
+        $creatableTypes = array_diff(PowerDNSService::SUPPORTED_TYPES, ['SOA']);
+
         return $schema
             ->components([
                 Select::make('domain_id')
@@ -25,7 +27,7 @@ class PdnsRecordForm
 
                 Select::make('type')
                     ->label('Record Type')
-                    ->options(array_combine(PowerDNSService::SUPPORTED_TYPES, PowerDNSService::SUPPORTED_TYPES))
+                    ->options(array_combine($creatableTypes, $creatableTypes))
                     ->default('A')
                     ->required()
                     ->live(),

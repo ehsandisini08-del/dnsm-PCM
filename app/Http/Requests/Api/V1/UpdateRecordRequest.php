@@ -14,9 +14,12 @@ class UpdateRecordRequest extends FormRequest
 
     public function rules(): array
     {
+        $updatableTypes = array_diff(PowerDNSService::SUPPORTED_TYPES, ['SOA']);
+        $typeList = implode(',', $updatableTypes).','.strtolower(implode(',', $updatableTypes));
+
         return [
             'name' => ['nullable', 'string', 'max:255'],
-            'type' => ['nullable', 'string', 'in:'.implode(',', PowerDNSService::SUPPORTED_TYPES).','.strtolower(implode(',', PowerDNSService::SUPPORTED_TYPES))],
+            'type' => ['nullable', 'string', 'in:'.$typeList],
             'content' => ['nullable', 'string'],
             'ttl' => ['nullable', 'integer', 'min:1', 'max:2147483647'],
             'prio' => ['nullable', 'integer', 'min:0', 'max:65535'],

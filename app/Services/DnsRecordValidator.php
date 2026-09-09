@@ -14,14 +14,33 @@ class DnsRecordValidator
      *
      * @throws ValidationException
      */
-    public static function validate(array $data): void
+    public static function validate(array $data, ?string $zoneName = null): void
     {
         $type = strtoupper($data['type'] ?? '');
+        $name = trim($data['name'] ?? '');
 
         if (! in_array($type, PowerDNSService::SUPPORTED_TYPES, true)) {
             throw ValidationException::withMessages([
                 'type' => "Unsupported record type [{$type}].",
             ]);
+        }
+
+        // RFC 1034 / RFC 2181: CNAME cannot be created at the zone apex (@)
+        if ($type === 'CNAME') {
+            $isApex = $name === '@' || $name === '';
+            if (! $isApex && $zoneName !== null) {
+                $cleanName = strtolower(rtrim($name, '.'));
+                $cleanZone = strtolower(rtrim($zoneName, '.'));
+                if ($cleanName === $cleanZone) {
+                    $isApex = true;
+                }
+            }
+
+            if ($isApex) {
+                throw ValidationException::withMessages([
+                    'name' => 'CNAME record cannot be placed at the zone apex (@). Use an A or AAAA record for the root domain (RFC 1034 / RFC 2181).',
+                ]);
+            }
         }
 
         $rules = [
@@ -200,7 +219,7 @@ class DnsRecordValidator
             case 'NS':
             case 'PTR':
             case 'MX':
-                return str_ends_with($content, '.') ? $content : $content.'.';
+                return rtrim($content, '.');
 
             case 'TXT':
                 // Wrap in double quotes if not already wrapped
@@ -224,7 +243,7 @@ class DnsRecordValidator
             case 'SRV':
                 $parts = preg_split('/\s+/', $content);
                 if (count($parts) === 3) {
-                    $target = str_ends_with($parts[2], '.') ? $parts[2] : $parts[2].'.';
+                    $target = rtrim($parts[2], '.');
 
                     return "{$parts[0]} {$parts[1]} {$target}";
                 }

@@ -179,6 +179,18 @@ test('api can create a record in a zone', function () {
         ]);
 });
 
+test('api rejects creating manual SOA record', function () {
+    $domain = $this->service->createZone(['name' => 'soablock.com']);
+
+    $response = $this->postJson("/api/v1/zones/{$domain->id}/records", [
+        'name' => '@',
+        'type' => 'SOA',
+        'content' => 'ns1.soablock.com hostmaster.soablock.com 2026090801 10800 3600 604800 3600',
+    ], $this->authHeaders);
+
+    $response->assertStatus(422);
+});
+
 test('api can list records for a zone', function () {
     $domain = $this->service->createZone(['name' => 'listrecords.com']);
     $this->service->createRecord($domain, [
