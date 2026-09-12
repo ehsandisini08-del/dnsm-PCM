@@ -43,7 +43,7 @@ class SslSettings extends Page
         /** @var User|null $user */
         $user = Auth::user();
 
-        return $user && $user->isSuperAdmin();
+        return $user && in_array($user->role, ['super_admin', 'dns_admin', 'operator'], true);
     }
 
     public function mount(): void

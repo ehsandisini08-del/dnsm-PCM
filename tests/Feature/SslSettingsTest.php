@@ -18,10 +18,18 @@ test('super admin can access ssl settings page', function () {
         ->assertSee('Status Sertifikat SSL / TLS');
 });
 
-test('non-super admin cannot access ssl settings page', function () {
+test('operator can access ssl settings page', function () {
     $operator = User::factory()->operator()->create();
 
     $this->actingAs($operator);
+
+    expect(SslSettings::canAccess())->toBeTrue();
+});
+
+test('customer cannot access ssl settings page', function () {
+    $customer = User::factory()->customer()->create();
+
+    $this->actingAs($customer);
 
     expect(SslSettings::canAccess())->toBeFalse();
 });

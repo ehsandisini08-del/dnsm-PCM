@@ -4,6 +4,10 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\Auth\CustomLogin;
 use App\Filament\Pages\Auth\CustomRegister;
+use App\Filament\Pages\Backups;
+use App\Filament\Pages\DnsMonitoring;
+use App\Filament\Pages\DnsTools;
+use App\Filament\Pages\SslSettings;
 use App\Filament\Widgets\DnsRecordTypeChart;
 use App\Filament\Widgets\DnsStatsOverview;
 use App\Filament\Widgets\RecentDnsActivity;
@@ -57,6 +61,10 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,
+                SslSettings::class,
+                Backups::class,
+                DnsMonitoring::class,
+                DnsTools::class,
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
