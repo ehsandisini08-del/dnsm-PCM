@@ -14,7 +14,7 @@ echo ""
 # Configuration
 APP_DIR="/var/www/dnsmanager"
 BRANCH="main"
-PHP_VERSION="8.3"
+PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo "8.4")
 
 # Colors
 RED='\033[0;31m'
@@ -109,7 +109,7 @@ composer dump-autoload --optimize
 echo -e "${GREEN}✓ Autoloader optimized${NC}"
 
 echo ""
-echo "[10/12] Setting permissions & sudoers for SSL Certbot..."
+echo "[10/12] Setting permissions, sudoers & systemd sandbox overrides for SSL Certbot..."
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 
@@ -119,8 +119,20 @@ if [ "$EUID" -eq 0 ]; then
 www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot, /usr/bin/systemctl reload nginx, /usr/sbin/nginx, /usr/bin/nginx
 EOF
     chmod 440 /etc/sudoers.d/dnsmanager-ssl 2>/dev/null || true
+
+    # Configure systemd drop-in override for PHP-FPM to allow write access to /etc/letsencrypt and /etc/nginx
+    for SVC in php8.4-fpm php8.3-fpm php8.2-fpm; do
+        if systemctl list-unit-files 2>/dev/null | grep -q "${SVC}"; then
+            mkdir -p "/etc/systemd/system/${SVC}.service.d"
+            cat << 'EOF' > "/etc/systemd/system/${SVC}.service.d/override.conf"
+[Service]
+ReadWritePaths=/etc/letsencrypt /etc/nginx /var/log/letsencrypt /var/lib/letsencrypt /var/www/dnsmanager
+EOF
+        fi
+    done
+    systemctl daemon-reload 2>/dev/null || true
 fi
-echo -e "${GREEN}✓ Permissions and sudoers configured${NC}"
+echo -e "${GREEN}✓ Permissions, sudoers, and systemd overrides configured${NC}"
 
 echo ""
 echo "[11/12] Restarting services..."

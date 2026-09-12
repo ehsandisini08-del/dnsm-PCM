@@ -479,6 +479,18 @@ www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot, /usr/bin/systemctl reload nginx, 
 EOF
 chmod 440 /etc/sudoers.d/dnsmanager-ssl 2>/dev/null || true
 
+# Configure systemd drop-in override for PHP-FPM to allow write access to /etc/letsencrypt and /etc/nginx (ProtectSystem=full bypass)
+for SVC in php8.4-fpm php8.3-fpm php8.2-fpm; do
+    if systemctl list-unit-files 2>/dev/null | grep -q "${SVC}"; then
+        mkdir -p "/etc/systemd/system/${SVC}.service.d"
+        cat << 'EOF' > "/etc/systemd/system/${SVC}.service.d/override.conf"
+[Service]
+ReadWritePaths=/etc/letsencrypt /etc/nginx /var/log/letsencrypt /var/lib/letsencrypt /var/www/dnsmanager
+EOF
+    fi
+done
+systemctl daemon-reload 2>/dev/null || true
+
 # Optional SSL with Certbot
 if [ "$ENABLE_SSL" = true ]; then
     info "Memasang sertifikat SSL Let's Encrypt untuk [$DOMAIN]..."
