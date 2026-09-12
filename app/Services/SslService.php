@@ -131,7 +131,7 @@ class SslService
         }
 
         $redirectFlag = $forceRedirect ? '--redirect' : '--no-redirect';
-        $cmd = "certbot --nginx -d {$domain} -m {$email} --agree-tos --non-interactive {$redirectFlag}";
+        $cmd = "sudo certbot --nginx -d {$domain} -m {$email} --agree-tos --non-interactive {$redirectFlag}";
 
         try {
             $result = Process::timeout(180)->run($cmd);
@@ -142,7 +142,7 @@ class SslService
                 $this->updateAppUrlToHttps($domain);
 
                 // Reload Nginx
-                Process::run('systemctl reload nginx');
+                Process::run('sudo systemctl reload nginx');
 
                 return [
                     'success' => true,
@@ -179,7 +179,7 @@ class SslService
         }
 
         $dryRunFlag = $dryRun ? '--dry-run' : '';
-        $cmd = trim("certbot renew {$dryRunFlag} --non-interactive");
+        $cmd = trim("sudo certbot renew {$dryRunFlag} --non-interactive");
 
         try {
             $result = Process::timeout(180)->run($cmd);
@@ -187,7 +187,7 @@ class SslService
 
             if ($result->successful()) {
                 if (! $dryRun) {
-                    Process::run('systemctl reload nginx');
+                    Process::run('sudo systemctl reload nginx');
                 }
 
                 $msg = $dryRun
@@ -228,7 +228,7 @@ class SslService
         }
 
         try {
-            $result = Process::run('nginx -t');
+            $result = Process::run('sudo nginx -t');
             $output = $result->output()."\n".$result->errorOutput();
 
             return [

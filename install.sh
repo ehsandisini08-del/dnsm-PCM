@@ -473,6 +473,12 @@ ln -sf /etc/nginx/sites-available/dnsmanager /etc/nginx/sites-enabled/
 nginx -t
 systemctl reload nginx
 
+# Allow www-data to execute certbot and reload nginx without password for SSL web automation
+cat << 'EOF' > /etc/sudoers.d/dnsmanager-ssl
+www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot, /usr/bin/systemctl reload nginx, /usr/sbin/nginx, /usr/bin/nginx
+EOF
+chmod 440 /etc/sudoers.d/dnsmanager-ssl 2>/dev/null || true
+
 # Optional SSL with Certbot
 if [ "$ENABLE_SSL" = true ]; then
     info "Memasang sertifikat SSL Let's Encrypt untuk [$DOMAIN]..."

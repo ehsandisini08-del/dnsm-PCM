@@ -109,10 +109,18 @@ composer dump-autoload --optimize
 echo -e "${GREEN}✓ Autoloader optimized${NC}"
 
 echo ""
-echo "[10/12] Setting permissions..."
+echo "[10/12] Setting permissions & sudoers for SSL Certbot..."
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
-echo -e "${GREEN}✓ Permissions set${NC}"
+
+# Allow www-data to execute certbot and reload nginx without password
+if [ "$EUID" -eq 0 ]; then
+    cat << 'EOF' > /etc/sudoers.d/dnsmanager-ssl
+www-data ALL=(ALL) NOPASSWD: /usr/bin/certbot, /usr/bin/systemctl reload nginx, /usr/sbin/nginx, /usr/bin/nginx
+EOF
+    chmod 440 /etc/sudoers.d/dnsmanager-ssl 2>/dev/null || true
+fi
+echo -e "${GREEN}✓ Permissions and sudoers configured${NC}"
 
 echo ""
 echo "[11/12] Restarting services..."
