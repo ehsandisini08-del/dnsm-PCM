@@ -72,15 +72,31 @@ php artisan migrate --seed
 php artisan filament:assets
 ```
 
-### 3. Default Login
-- URL: `http://localhost:8000/admin`
-- Email: `admin@example.com`
-- Password: `password`
+### 3. Create Super Admin
+```bash
+# Interactive mode (recommended)
+php artisan app:create-super-admin
+
+# Non-interactive mode
+php artisan app:create-super-admin \
+    --email=admin@yourdomain.com \
+    --password=SecurePassword123 \
+    --name="Super Admin" \
+    --no-interaction
+```
+
+**Note:** Super Admin users are created with `approved` status and can login immediately without requiring approval. See [ADMIN_SETUP.md](ADMIN_SETUP.md) for detailed guide.
 
 ### 4. Running the Application
 ```bash
 php artisan serve
 ```
+
+### 5. Login
+- URL: `http://localhost:8000/admin`
+- Email: (email yang dibuat di step 3)
+- Password: (password yang dibuat di step 3)
+- 2FA: Check OTP code di `storage/logs/laravel.log` atau email
 
 ---
 
@@ -94,6 +110,15 @@ php artisan test --compact
 ---
 
 ## Detailed Documentation
+
+### Production Deployment & Administration
+
+- [Deployment Guide](DEPLOYMENT_GUIDE.md) - Complete production deployment procedures
+- [Quick Deploy Reference](QUICK_DEPLOY.md) - Fast deployment cheat sheet
+- [Admin Setup Guide](ADMIN_SETUP.md) - Super Admin creation and management
+- [Testing Guide](TESTING_GUIDE.md) - Manual testing scenarios for OAuth & OTP workflow
+
+### Technical Documentation
 
 Comprehensive guides are available in the [`docs/`](./docs) folder:
 
