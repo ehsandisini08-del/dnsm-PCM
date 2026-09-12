@@ -31,8 +31,37 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'role' => 'super_admin',
             'is_active' => true,
+            'approval_status' => 'approved',
+            'approved_at' => now(),
             'remember_token' => Str::random(10),
         ];
+    }
+
+    public function approved(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'approval_status' => 'approved',
+            'is_active' => true,
+            'approved_at' => now(),
+        ]);
+    }
+
+    public function pendingApproval(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'approval_status' => 'pending',
+            'is_active' => false,
+            'approved_at' => null,
+            'approved_by' => null,
+        ]);
+    }
+
+    public function rejected(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'approval_status' => 'rejected',
+            'is_active' => false,
+        ]);
     }
 
     public function superAdmin(): static

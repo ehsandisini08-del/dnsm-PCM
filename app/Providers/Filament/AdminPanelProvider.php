@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\CustomLogin;
+use App\Filament\Pages\Auth\CustomRegister;
 use App\Filament\Widgets\DnsRecordTypeChart;
 use App\Filament\Widgets\DnsStatsOverview;
 use App\Filament\Widgets\RecentDnsActivity;
@@ -14,6 +16,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -32,7 +35,16 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('DNS Manager Pro')
             ->font('Inter')
             ->sidebarCollapsibleOnDesktop()
-            ->login()
+            ->login(CustomLogin::class)
+            ->registration(CustomRegister::class)
+            ->renderHook(
+                PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+                fn () => view('filament.auth.google-button', ['action' => 'login']),
+            )
+            ->renderHook(
+                PanelsRenderHook::AUTH_REGISTER_FORM_AFTER,
+                fn () => view('filament.auth.google-button', ['action' => 'register']),
+            )
             ->colors([
                 'primary' => Color::Indigo,
                 'gray' => Color::Slate,
